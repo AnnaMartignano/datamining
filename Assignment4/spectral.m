@@ -52,6 +52,15 @@ e2 = data(:, 2);
 if dim == 3
     e3 = data(:, 3);
 end
+
+figure;
+if dim == 2
+    scatter(e1, e2, [], '', 'filled');
+elseif dim == 3
+    scatter3(e1, e2, e3, [], '', 'filled');
+end
+title([filename ' ,' num2str(k) ' original']);
+
 figure;
 for i = 1 : k
     color = rand(1, 3);
