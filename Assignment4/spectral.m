@@ -6,7 +6,6 @@ close all
 filename = 'example1.dat';
 %filename = 'example2.dat';
 data = csvread(filename);
-dim = size(data, 2);
 
 %% 
 
@@ -37,19 +36,24 @@ sigma_range = 1 : 0.5 : 5;
 
 min_sumd = inf;
 for sigma = sigma_range
-    [orders, idx, G, sumdist, k] = spectral_clustering(data, sigma);
+    [orders, idx, G, eig_val, sumdist, k] = spectral_clustering(data, sigma);
     if sum(sumdist) < min_sumd
         min_sumd = sum(sumdist);
         sigma_opt = sigma;
         orders_opt = orders;
         idx_opt = idx;
         k_opt = k;
+        eig_val_opt = eig_val;
     end
 end
 
 %% Plot Original and Clustered Graph
 p = plot(G,'layout','force');
 title(['Graph Dataset ' filename]);
+
+figure,
+plot(eig_val_opt);
+title(['Sorted eigenvalues ' filename]);
 
 size(idx_opt)
 idx_opt;
@@ -60,7 +64,7 @@ highlight(h,find(idx_opt==1),'NodeColor','r')
 highlight(h,find(idx_opt==2),'NodeColor','g')
 highlight(h,find(idx_opt==3),'NodeColor','b')
 highlight(h,find(idx_opt==4),'NodeColor','c')
-title([filename ' ,' num2str(k) ' clusters with sigma ' num2str(sigma_opt) ]);
+title([filename ' ,' num2str(k_opt) ' clusters with sigma ' num2str(sigma_opt) ]);
 
 % Step 6
 [~, r_orders] = sort(orders_opt, 'descend');
@@ -69,7 +73,7 @@ clusters = idx_opt(r_orders);
 
 %% Function Definition
 
-function [orders, idx, G, sumdist, k] = spectral_clustering(data, sigma)
+function [orders, idx, G, eig_val, sumdist, k] = spectral_clustering(data, sigma)
     % Step 1
     %A = compute_A(data, sigma);
     col1 = data(:,1);
