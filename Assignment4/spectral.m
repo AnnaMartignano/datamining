@@ -1,9 +1,14 @@
-clc;clear all;close all;
+clear
+clc
+close all
+%% Dataset Loading
 
-% filename = 'example1.dat';
-filename = 'example2.dat';
-data = csvread(filename)
+filename = 'example1.dat';
+%filename = 'example2.dat';
+data = csvread(filename);
 dim = size(data, 2);
+
+%% 
 
 %{
 Given a set of points S = {s1, ... Sn} we want to cluster into k clusters.
@@ -27,55 +32,51 @@ The scaling parameter sigma^2 controls how rapidly the affinity Aij falls
 off with the distance between si and sj. 
 %}
 
-% hyperparameter to tune
-k = 4;
+% hyperparameter to tune k and sigma
 sigma_range = 1 : 0.5 : 5;
 
 min_sumd = inf;
 for sigma = sigma_range
-    [orders, idx, sumdist] = spectral_clustering(data, k, sigma)
+    [orders, idx, G, sumdist, k] = spectral_clustering(data, sigma);
     if sum(sumdist) < min_sumd
         min_sumd = sum(sumdist);
         sigma_opt = sigma;
         orders_opt = orders;
         idx_opt = idx;
+        k_opt = k;
     end
 end
+
+%% Plot Original and Clustered Graph
+p = plot(G,'layout','force');
+title(['Graph Dataset ' filename]);
+
+size(idx_opt)
+idx_opt;
+figure;
+hold on;
+h = plot(G);
+highlight(h,find(idx_opt==1),'NodeColor','r')
+highlight(h,find(idx_opt==2),'NodeColor','g')
+highlight(h,find(idx_opt==3),'NodeColor','b')
+highlight(h,find(idx_opt==4),'NodeColor','c')
+title([filename ' ,' num2str(k) ' clusters with sigma ' num2str(sigma_opt) ]);
 
 % Step 6
 [~, r_orders] = sort(orders_opt, 'descend');
 clusters = idx_opt(r_orders);
 
-% plot results
-e1 = data(:, 1);
-e2 = data(:, 2);
-if dim == 3
-    e3 = data(:, 3);
-end
 
-figure;
-if dim == 2
-    scatter(e1, e2, [], '', 'filled');
-elseif dim == 3
-    scatter3(e1, e2, e3, [], '', 'filled');
-end
-title([filename ' ,' num2str(k) ' original']);
+%% Function Definition
 
-figure;
-for i = 1 : k
-    color = rand(1, 3);
-    if dim == 2
-        scatter(e1(clusters == i), e2(clusters == i), [], color, 'filled');
-    elseif dim == 3
-        scatter3(e1(clusters == i), e2(clusters == i), e3(clusters == i), [], color, 'filled');
-    end
-    hold on;
-end
-title([filename ' ,' num2str(k) ' clusters with sigma ' num2str(sigma_opt) ]);
-
-function [orders, idx, sumdist] = spectral_clustering(data, k, sigma)
+function [orders, idx, G, sumdist, k] = spectral_clustering(data, sigma)
     % Step 1
-    A = compute_A(data, sigma)
+    %A = compute_A(data, sigma);
+    col1 = data(:,1);
+    col2 = data(:,2);    
+    G = graph( col1, col2 );
+    Ad = adjacency(G);
+    A = full(Ad);
 
     % Step 2
     D = diag(sum(A, 2));
@@ -84,6 +85,7 @@ function [orders, idx, sumdist] = spectral_clustering(data, k, sigma)
     % Step 3
     [v, d] = eig(L);
     [eig_val, orders] = sort(diag(d), 'descend');
+    k = find_cluster_size(eig_val);
     eig_vec = v(:, orders);
     X = eig_vec(:, 1 : k);
 
@@ -101,5 +103,17 @@ function A = compute_A(x, sigma)
 
     % .^ -> element-wise power and ./ -> element-wise division
     A = exp(-(si_sj_dist.^2)./(2*sigma^2)); % according to the formula
-    A = A - diag(ones(size(A, 1), 1));      % to set Aii = 0 
+    A = A - diag(diag(A));      % to set Aii = 0 
+end
+
+function k = find_cluster_size(eig_val)
+    disp(eig_val)
+    diff = eig_val(1) - eig_val(2);
+    k = 2;
+    for n = 3 : length(eig_val)
+        if (eig_val(n-1)-eig_val(n) > diff)
+            k = n;
+            break;
+        end
+    end
 end
