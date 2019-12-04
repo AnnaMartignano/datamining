@@ -3,8 +3,8 @@ clc
 close all
 %% Dataset Loading
 
-filename = 'example1.dat';
-%filename = 'example2.dat';
+%filename = 'example1.dat';
+filename = 'example2.dat';
 data = csvread(filename);
 
 %% 
@@ -109,15 +109,7 @@ function A = compute_A(x, sigma)
     A = exp(-(si_sj_dist.^2)./(2*sigma^2)); % according to the formula
     A = A - diag(diag(A));      % to set Aii = 0 
 end
-
 function k = find_cluster_size(eig_val)
-    disp(eig_val)
-    diff = eig_val(1) - eig_val(2);
-    k = 2;
-    for n = 3 : length(eig_val)
-        if (eig_val(n-1)-eig_val(n) > diff)
-            k = n;
-            break;
-        end
-    end
+    diffs = eig_val(1:end-1) - eig_val(2:end);
+    [top, k] = max(diffs);
 end
