@@ -19,6 +19,7 @@ public class Jabeja {
   private int round;
   private float T;
   private boolean resultFileCreated = false;
+  private Version version;
 
   //-------------------------------------------------------------------
   public Jabeja(HashMap<Integer, Node> graph, Config config) {
@@ -28,14 +29,21 @@ public class Jabeja {
     this.numberOfSwaps = 0;
     this.config = config;
     this.T = config.getTemperature();
+    this.version = Version.RESTART;
   }
 
 
   //-------------------------------------------------------------------
   public void startJabeja() throws IOException {
+    if (version == Version.SAKATA) T = 1;
+
+    config.setDelta(0.01f);
     for (round = 0; round < config.getRounds(); round++) {
       for (int id : entireGraph.keySet()) {
         sampleAndSwap(id);
+        if (version == Version.RESTART && round % 200 == 0){
+          T = config.getTemperature();
+        }
       }
 
       //one cycle for all nodes have completed.
@@ -49,11 +57,15 @@ public class Jabeja {
    * Simulated analealing cooling function
    */
   private void saCoolDown(){
-    // TODO for second task
-    if (T > 1)
-      T -= config.getDelta();
-    if (T < 1)
-      T = 1;
+    // Simulated Annealing verison proposed by
+    if (version == Version.SAKATA){
+      if (T > 0.001f) T = T*0.95f;
+      if (T < 0.001f) T = 0.001f;
+    }
+    else if (version == Version.BASE || version == Version.RESTART){
+      if (T > 1) T -= config.getDelta();
+      if (T < 1) T = 1;
+    }
   }
 
   /**
@@ -112,12 +124,20 @@ public class Jabeja {
       int degqp = getDegree(nodeq, nodep.getColor());
       double swapColNeigh = Math.pow(degpq,alpha) + Math.pow(degqp, alpha);
 
-      //update decision criterion (dp(πq)^α + dq(πp)^α) ×T > dp(πp)^α + dq(πq)^α.
-      if(swapColNeigh*this.T > colNeigh && swapColNeigh > highestBenefit){
-        bestPartner = nodeq;
-        highestBenefit = swapColNeigh;
+      if (version == Version.BASE || version == Version.RESTART){
+        if(swapColNeigh*this.T > colNeigh && swapColNeigh > highestBenefit){
+          bestPartner = nodeq;
+          highestBenefit = swapColNeigh;
+        }
       }
-
+      else if (version == Version.SAKATA){
+        double ap = Math.exp((swapColNeigh - colNeigh) / T);
+        Random r = new Random();
+        if (r.nextDouble() < ap && swapColNeigh > highestBenefit){
+          bestPartner = nodeq;
+          highestBenefit = swapColNeigh;
+        }
+      }
     }
 
     return bestPartner;
