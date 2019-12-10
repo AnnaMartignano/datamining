@@ -1,5 +1,6 @@
 package se.kth.jabeja;
 
+import javafx.util.Pair;
 import org.apache.log4j.Logger;
 import se.kth.jabeja.config.Config;
 import se.kth.jabeja.config.NodeSelectionPolicy;
@@ -8,6 +9,7 @@ import se.kth.jabeja.rand.RandNoGenerator;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.*;
 
 public class Jabeja {
@@ -20,6 +22,7 @@ public class Jabeja {
   private float T;
   private boolean resultFileCreated = false;
   private Version version;
+  private int epsilon = 50;
 
   //-------------------------------------------------------------------
   public Jabeja(HashMap<Integer, Node> graph, Config config) {
@@ -29,7 +32,7 @@ public class Jabeja {
     this.numberOfSwaps = 0;
     this.config = config;
     this.T = config.getTemperature();
-    this.version = Version.RESTART;
+    this.version = Version.SAKATA;
   }
 
 
@@ -37,12 +40,21 @@ public class Jabeja {
   public void startJabeja() throws IOException {
     if (version == Version.SAKATA) T = 1;
 
-    config.setDelta(0.01f);
+    //config.setDelta(0.003f);
+    //config.setAlpha(2.0f);
+
     for (round = 0; round < config.getRounds(); round++) {
       for (int id : entireGraph.keySet()) {
-        sampleAndSwap(id);
-        if (version == Version.RESTART && round % 200 == 0){
-          T = config.getTemperature();
+        if (round < 800) {
+          sampleAndSwap(id);
+          if (version == Version.RESTART && round % 100 == 0) {
+            T = config.getTemperature();
+          }
+        }
+        else if (version == Version.UNBA && round >= 800){
+          Node nodep = entireGraph.get(id);
+          int color = findColor(id);
+          nodep.setColor(color);
         }
       }
 
@@ -51,6 +63,22 @@ public class Jabeja {
       saCoolDown();
       report();
     }
+
+    Map<Integer, Integer> balance = new HashMap<Integer, Integer>();
+
+    for (int id : entireGraph.keySet()){
+      Node nodep = entireGraph.get(id);
+      int count = balance.containsKey(nodep.getColor()) ? balance.get(nodep.getColor()) : 0;
+      balance.put(nodep.getColor(), count + 1);
+    }
+
+    /*
+    try (PrintWriter out = new PrintWriter("balance.txt")) {
+      out.println(balance);
+    }
+     */
+
+
   }
 
   /**
@@ -62,7 +90,7 @@ public class Jabeja {
       if (T > 0.001f) T = T*0.95f;
       if (T < 0.001f) T = 0.001f;
     }
-    else if (version == Version.BASE || version == Version.RESTART){
+    else if (version == Version.BASE || version == Version.RESTART || version == Version.UNBA){
       if (T > 1) T -= config.getDelta();
       if (T < 1) T = 1;
     }
@@ -102,12 +130,37 @@ public class Jabeja {
     }
   }
 
+  public int findColor(int nodeId){
+    Node nodep = entireGraph.get(nodeId);
+    double highestBenefit = 0;
+    int color = nodep.getColor();
+
+    for (int i= 0; i < config.getNumPartitions(); i++){
+      double alpha = config.getAlpha();
+
+      //compute the current number of neighbors with the same color
+      int degpp = getDegree(nodep, nodep.getColor());
+      double colNeigh = Math.pow(degpp,alpha);
+
+      //compute the number of neighbors with the same color if you have swapped them
+      int degpq = getDegree(nodep, i);
+      double swapColNeigh = Math.pow(degpq,alpha);
+
+      if(swapColNeigh > colNeigh && swapColNeigh > highestBenefit){
+          color = i;
+          highestBenefit = swapColNeigh;
+      }
+    }
+    return color;
+  }
+
   public Node findPartner(int nodeId, Integer[] nodes){
 
     Node nodep = entireGraph.get(nodeId);
 
     Node bestPartner = null;
     double highestBenefit = 0;
+    ArrayList<Double> fitness = new ArrayList<Double>();
 
     // TODO
     for(int i: nodes){
@@ -124,14 +177,15 @@ public class Jabeja {
       int degqp = getDegree(nodeq, nodep.getColor());
       double swapColNeigh = Math.pow(degpq,alpha) + Math.pow(degqp, alpha);
 
-      if (version == Version.BASE || version == Version.RESTART){
+      if (version == Version.BASE || version == Version.RESTART || version == Version.UNBA){
         if(swapColNeigh*this.T > colNeigh && swapColNeigh > highestBenefit){
           bestPartner = nodeq;
           highestBenefit = swapColNeigh;
         }
       }
       else if (version == Version.SAKATA){
-        double ap = Math.exp((swapColNeigh - colNeigh) / T);
+        //double ap = Math.exp((swapColNeigh - colNeigh) / T);
+        double ap = 1 / (1+ Math.exp((colNeigh - swapColNeigh) / T));
         Random r = new Random();
         if (r.nextDouble() < ap && swapColNeigh > highestBenefit){
           bestPartner = nodeq;
